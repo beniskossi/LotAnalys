@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>LotoBonheur Analytics</title>
+  <meta name="description" content="Analyse et prédictions de loterie" />
+  <meta name="theme-color" content="#1e3a8a" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/brain.js"></script>
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    /* Custom scrollbar for a cleaner look */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fade-in-up 0.3s ease-out forwards;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0"
+  }
+}
+</script>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased selection:bg-blue-200 selection:text-blue-900">
+  <div id="root"></div>
+  <script>
+    // Mock Manifest for PWA installation simulation
+    const manifest = {
+      "name": "LotoBonheur Analytics",
+      "short_name": "LotoStats",
+      "start_url": ".",
+      "display": "standalone",
+      "background_color": "#ffffff",
+      "theme_color": "#1e3a8a",
+      "icons": [
+        {
+          "src": "https://picsum.photos/192/192",
+          "sizes": "192x192",
+          "type": "image/png"
+        },
+        {
+          "src": "https://picsum.photos/512/512",
+          "sizes": "512x512",
+          "type": "image/png"
+        }
+      ]
+    };
+    const stringManifest = JSON.stringify(manifest);
+    const blob = new Blob([stringManifest], {type: 'application/json'});
+    const manifestURL = URL.createObjectURL(blob);
+    document.querySelector('link[rel="manifest"]').setAttribute('href', manifestURL);
+  </script>
+</body>
+</html>
