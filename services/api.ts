@@ -1,36 +1,31 @@
+
 import { DrawResult } from '../types';
 import { parse } from 'date-fns';
 import { saveDrawsToDB, getDrawsFromDB } from './db';
+import { supabase } from './supabaseClient';
 
-// Mock Data Generator for Fallback
-const generateMockData = (drawName: string): DrawResult[] => {
-  const results: DrawResult[] = [];
-  const today = new Date();
-  
-  for (let i = 0; i < 100; i++) { // 100 draws history
-    const date = new Date(today);
-    date.setDate(date.getDate() - i * 7); 
-    
-    const gagnants = Array.from({ length: 5 }, () => Math.floor(Math.random() * 90) + 1);
-    const machine = Array.from({ length: 5 }, () => Math.floor(Math.random() * 90) + 1);
-    
-    results.push({
-      id: i,
-      draw_name: drawName,
-      date: date.toISOString().split('T')[0],
-      gagnants,
-      machine: Math.random() > 0.2 ? machine : undefined,
-    });
-  }
-  return results;
-};
+// NOTE: STRICTLY NO MOCK DATA. REAL DATA ONLY.
 
 export async function fetchLotteryResults(drawName: string, month?: string): Promise<DrawResult[]> {
   const baseUrl = 'https://lotobonheur.ci/api/results';
   const url = month ? `${baseUrl}?month=${month}` : baseUrl;
 
   try {
-    // Try Network First
+    // 1. Try Supabase (Cloud - Fastest & Shared)
+    if (supabase) {
+        const { data, error } = await supabase
+            .from('draws')
+            .select('*')
+            .eq('draw_name', drawName)
+            .order('date', { ascending: false });
+        
+        if (!error && data && data.length > 0) {
+            // Convert Supabase format to App format if needed, or ensure types match
+            return data as DrawResult[];
+        }
+    }
+
+    // 2. Try Network (Scraping Source)
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -38,97 +33,92 @@ export async function fetchLotteryResults(drawName: string, month?: string): Pro
       },
     });
 
-    if (!response.ok) throw new Error('Network response was not ok');
+    if (response.ok) {
+        const resultsData = await response.json();
+        if (resultsData.success) {
+            const drawsResultsWeekly = resultsData.drawsResultsWeekly || [];
+            const validDrawNames = new Set<string>(resultsData.drawTypes || []);
+            
+            const allParsedDraws: DrawResult[] = [];
 
-    const resultsData = await response.json();
-    if (!resultsData.success) throw new Error('API response not successful');
+            for (const week of drawsResultsWeekly) {
+            for (const dailyResult of week.drawResultsDaily) {
+                const dateStr = dailyResult.date;
+                let drawDate: string;
 
-    const drawsResultsWeekly = resultsData.drawsResultsWeekly || [];
-    const validDrawNames = new Set<string>(resultsData.drawTypes || []);
-    
-    const allParsedDraws: DrawResult[] = [];
+                try {
+                const parts = dateStr.split(' ');
+                const dayMonth = parts.length > 1 ? parts[1] : parts[0];
+                const [day, m] = dayMonth.split('/');
+                
+                const now = new Date();
+                let year = now.getFullYear();
+                const monthIndex = parseInt(m) - 1;
+                
+                if (now.getMonth() === 0 && monthIndex === 11) {
+                    year = year - 1;
+                }
 
-    // Process ALL data found in response to cache everything
-    for (const week of drawsResultsWeekly) {
-      for (const dailyResult of week.drawResultsDaily) {
-        const dateStr = dailyResult.date;
-        let drawDate: string;
+                const parsedDate = parse(`${day}/${m}/${year}`, 'dd/MM/yyyy', new Date());
+                drawDate = parsedDate.toISOString().split('T')[0];
+                } catch (e) {
+                continue;
+                }
 
-        try {
-          // "jeudi 18/09" -> "18/09"
-          const parts = dateStr.split(' ');
-          const dayMonth = parts.length > 1 ? parts[1] : parts[0];
-          const [day, m] = dayMonth.split('/');
-          
-          // Handle Year Rollover (e.g., Scraping Dec in Jan)
-          const now = new Date();
-          let year = now.getFullYear();
-          const monthIndex = parseInt(m) - 1; // 0-11
-          
-          // If currently Jan (0) and data is Dec (11), it was last year
-          if (now.getMonth() === 0 && monthIndex === 11) {
-            year = year - 1;
-          }
+                const allDraws = [
+                ...(dailyResult.drawResults.standardDraws || []),
+                ...(dailyResult.drawResults.nightDraws || [])
+                ];
 
-          const parsedDate = parse(`${day}/${m}/${year}`, 'dd/MM/yyyy', new Date());
-          drawDate = parsedDate.toISOString().split('T')[0];
-        } catch (e) {
-          console.warn(`Date parsing error: ${dateStr}`, e);
-          continue;
+                for (const draw of allDraws) {
+                if (validDrawNames.has(draw.drawName)) {
+                    const winningNumbers = (draw.winningNumbers?.match(/\d+/g) || []).map(Number).slice(0, 5);
+                    const machineNumbers = (draw.machineNumbers?.match(/\d+/g) || []).map(Number).slice(0, 5);
+
+                    if (winningNumbers.length === 5) {
+                    allParsedDraws.push({
+                        draw_name: draw.drawName,
+                        date: drawDate,
+                        gagnants: winningNumbers,
+                        machine: machineNumbers.length === 5 ? machineNumbers : undefined,
+                    });
+                    }
+                }
+                }
+            }
+            }
+
+            // Save to IndexedDB
+            if (allParsedDraws.length > 0) {
+                await saveDrawsToDB(allParsedDraws);
+                
+                // Optional: Sync to Supabase here if user is admin
+            }
+
+            const filteredResults = allParsedDraws.filter(d => d.draw_name === drawName);
+            if (filteredResults.length > 0) return filteredResults;
         }
-
-        const allDraws = [
-          ...(dailyResult.drawResults.standardDraws || []),
-          ...(dailyResult.drawResults.nightDraws || [])
-        ];
-
-        for (const draw of allDraws) {
-          if (validDrawNames.has(draw.drawName)) {
-             const winningNumbers = (draw.winningNumbers?.match(/\d+/g) || []).map(Number).slice(0, 5);
-             const machineNumbers = (draw.machineNumbers?.match(/\d+/g) || []).map(Number).slice(0, 5);
-
-             if (winningNumbers.length === 5) {
-               allParsedDraws.push({
-                 draw_name: draw.drawName,
-                 date: drawDate,
-                 gagnants: winningNumbers,
-                 machine: machineNumbers.length === 5 ? machineNumbers : undefined,
-               });
-             }
-          }
-        }
-      }
     }
 
-    // Save all parsed draws to IndexedDB for offline use
-    if (allParsedDraws.length > 0) {
-      await saveDrawsToDB(allParsedDraws);
-    }
-
-    // Filter for the requested draw
-    const filteredResults = allParsedDraws.filter(d => d.draw_name === drawName);
-
-    if (filteredResults.length === 0) throw new Error('No specific results found in fresh data');
-    return filteredResults;
+    throw new Error('Network fetch failed or empty');
 
   } catch (error) {
-    console.warn("Network failed or empty, checking IndexedDB...", error);
+    console.warn("Network failed, checking IndexedDB...", error);
     
-    // Fallback: Check IndexedDB
+    // 3. Fallback: Check IndexedDB (Local Cache)
     const cachedDraws = await getDrawsFromDB(drawName);
     if (cachedDraws && cachedDraws.length > 0) {
       console.log("Loaded from IndexedDB");
       return cachedDraws;
     }
 
-    // Final Fallback: Mock Data
-    console.log("Using Mock Data (Offline/Demo Mode)");
-    return generateMockData(drawName);
+    // 4. Final State: No Data.
+    // We DO NOT generate mock data. We return empty or throw.
+    console.warn("No real data available.");
+    return [];
   }
 }
 
-export const getResultsForDraw = async (drawName: string, forceRefresh = false): Promise<DrawResult[]> => {
-  // If forceRefresh is false, we could theoretically check DB first, 
-  // but our policy is Network First -> DB -> Mock.
+export const getResultsForDraw = async (drawName: string): Promise<DrawResult[]> => {
   return fetchLotteryResults(drawName);
 };

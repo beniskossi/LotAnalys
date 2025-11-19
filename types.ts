@@ -51,3 +51,11 @@ export interface PredictionResult {
   numbers: number[];
   confidence: number;
 }
+
+export interface RegularityStat {
+  number: number;
+  gaps: number[]; // Les derniers écarts (ex: [4, 4, 5])
+  avgGap: number; // Écart moyen
+  consistency: number; // Score de régularité (0 = parfait)
+  nextExpectedIn: number; // Estimation du prochain tirage (négatif = en retard)
+}

@@ -3,9 +3,10 @@ import { NumberStats } from '../types';
 
 interface HeatmapProps {
   stats: NumberStats[];
+  onNumberClick?: (num: number) => void;
 }
 
-const Heatmap: React.FC<HeatmapProps> = ({ stats }) => {
+const Heatmap: React.FC<HeatmapProps> = ({ stats, onNumberClick }) => {
   // Find max frequency to normalize colors
   const maxFreq = Math.max(...stats.map(s => s.frequency), 1);
 
@@ -15,10 +16,6 @@ const Heatmap: React.FC<HeatmapProps> = ({ stats }) => {
   const getHeatColor = (freq: number) => {
     const intensity = freq / maxFreq;
     // Gradient from Slate-100 (Cold) to Blue-900 (Hot)
-    // We simulate this by returning classes or inline styles. 
-    // For finer control, we use inline HSLA or RGB.
-    // Blue-600 is roughly hsl(221, 83%, 53%)
-    // We will vary lightness from 95% (white-ish) to 40% (dark blue)
     const lightness = 95 - (intensity * 55); 
     return `hsl(221, 83%, ${lightness}%)`;
   };
@@ -42,12 +39,13 @@ const Heatmap: React.FC<HeatmapProps> = ({ stats }) => {
         {sortedStats.map((s) => (
           <div 
             key={s.number}
-            className="aspect-square rounded-md flex flex-col items-center justify-center text-xs font-bold shadow-sm transition-transform hover:scale-110 cursor-default border border-black/5"
+            onClick={() => onNumberClick && onNumberClick(s.number)}
+            className={`aspect-square rounded-md flex flex-col items-center justify-center text-xs font-bold shadow-sm transition-transform border border-black/5 ${onNumberClick ? 'cursor-pointer hover:scale-110 hover:z-10' : ''}`}
             style={{ 
               backgroundColor: getHeatColor(s.frequency),
               color: getTextColor(s.frequency)
             }}
-            title={`Numéro ${s.number}: ${s.frequency} sorties`}
+            title={`Numéro ${s.number}: ${s.frequency} sorties - Cliquez pour analyser`}
           >
             <span>{s.number}</span>
             {s.frequency > 0 && (
