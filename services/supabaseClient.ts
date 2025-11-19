@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 // NOTE: These environment variables must be set in your project build pipeline

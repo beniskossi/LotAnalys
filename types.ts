@@ -1,4 +1,3 @@
-
 export interface DrawResult {
   id?: number;
   draw_name: string;

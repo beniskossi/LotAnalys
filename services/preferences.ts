@@ -1,4 +1,3 @@
-
 const KEY_FAVORITES = 'lb_favorites';
 
 export const getFavorites = (): number[] => {

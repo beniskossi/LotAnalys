@@ -1,4 +1,3 @@
-
 import { DrawResult, NumberStats, PredictionResult, DayAffinity, PatternStats, RegularityStat } from '../types';
 
 // Declare brain.js global type (loaded via CDN)
